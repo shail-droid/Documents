@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { addNote } from "@/lib/storage";
-import { FabricReturnNote } from "@/lib/types";
+import { supabase } from "@/lib/supabaseClient";
 
 function todayISODate() {
   const d = new Date();
@@ -10,13 +9,6 @@ function todayISODate() {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
-}
-
-function newId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
 type FormState = {
@@ -56,6 +48,7 @@ export default function NewReturnNotePage() {
   const [form, setForm] = useState<FormState>(initial);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -76,7 +69,7 @@ export default function NewReturnNotePage() {
     return null;
   }
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSuccess(null);
     setError(null);
@@ -86,24 +79,37 @@ export default function NewReturnNotePage() {
       return;
     }
 
-    const note: FabricReturnNote = {
-      id: newId(),
-      fabricCode: form.fabricCode.trim(),
-      date: form.date,
-      vendorName: form.vendorName.trim(),
-      styleCode: form.styleCode.trim(),
-      receivedQuantity: Number(form.receivedQuantity),
-      returnedQuantity: Number(form.returnedQuantity),
-      returnReason: form.returnReason.trim(),
-      challanNo: form.challanNo.trim(),
-      status: "PENDING",
-      createdAt: Date.now()
-    };
+    setSubmitting(true);
+    try {
+      const { error: insertError } = await supabase
+        .from("fabric_return_notes")
+        .insert({
+          fabric_code: form.fabricCode.trim(),
+          date: form.date,
+          vendor_name: form.vendorName.trim(),
+          style_code: form.styleCode.trim(),
+          received_quantity: Number(form.receivedQuantity),
+          returned_quantity: Number(form.returnedQuantity),
+          return_reason: form.returnReason.trim(),
+          challan_no: form.challanNo.trim(),
+          status: "PENDING"
+        });
 
-    addNote(note);
-    setForm({ ...initial, date: todayISODate() });
-    setSuccess("Return Note generated and saved.");
-    window.setTimeout(() => setSuccess(null), 2500);
+      if (insertError) {
+        console.error(insertError);
+        setError("Failed to save return note. Please try again.");
+        return;
+      }
+
+      setForm({ ...initial, date: todayISODate() });
+      setSuccess("Return Note generated and saved to Supabase.");
+      window.setTimeout(() => setSuccess(null), 2500);
+    } catch (err) {
+      console.error(err);
+      setError("Unexpected error while saving. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -235,9 +241,10 @@ export default function NewReturnNotePage() {
           </div>
           <button
             type="submit"
+            disabled={submitting}
             className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
           >
-            Generate Return Note
+            {submitting ? "Saving..." : "Generate Return Note"}
           </button>
         </div>
       </form>

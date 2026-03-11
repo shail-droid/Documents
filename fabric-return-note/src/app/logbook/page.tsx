@@ -2,31 +2,63 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { StatusBadge } from "@/components/StatusBadge";
-import { listNotes, markReceived } from "@/lib/storage";
 import { FabricReturnNote } from "@/lib/types";
+import { supabase } from "@/lib/supabaseClient";
 
 function sortNewestFirst(a: FabricReturnNote, b: FabricReturnNote) {
   if (a.date !== b.date) return a.date < b.date ? 1 : -1;
   return b.createdAt - a.createdAt;
 }
 
+function mapRowToNote(row: any): FabricReturnNote {
+  return {
+    id: row.id,
+    fabricCode: row.fabric_code,
+    date: row.date,
+    vendorName: row.vendor_name,
+    styleCode: row.style_code,
+    receivedQuantity: row.received_quantity,
+    returnedQuantity: row.returned_quantity,
+    returnReason: row.return_reason,
+    challanNo: row.challan_no,
+    status: row.status,
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : 0,
+    receivedAt: row.received_at ? new Date(row.received_at).getTime() : undefined
+  };
+}
+
 export default function LogBookPage() {
   const [notes, setNotes] = useState<FabricReturnNote[]>([]);
   const [pendingAck, setPendingAck] = useState<Record<string, boolean>>({});
   const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    setNotes(listNotes().slice().sort(sortNewestFirst));
-  }, []);
+  async function loadNotes() {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("fabric_return_notes")
+        .select("*")
+        .order("date", { ascending: false })
+        .order("created_at", { ascending: false });
 
-  useEffect(() => {
-    function onStorage(e: StorageEvent) {
-      if (e.key) {
-        setNotes(listNotes().slice().sort(sortNewestFirst));
+      if (error) {
+        console.error(error);
+        setMessage("Failed to load notes from Supabase.");
+        return;
       }
+
+      setNotes((data ?? []).map(mapRowToNote));
+    } catch (err) {
+      console.error(err);
+      setMessage("Unexpected error while loading notes.");
+    } finally {
+      setLoading(false);
     }
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+  }
+
+  useEffect(() => {
+    loadNotes();
   }, []);
 
   const pendingCount = useMemo(
@@ -34,26 +66,43 @@ export default function LogBookPage() {
     [notes]
   );
 
-  function refresh() {
-    setNotes(listNotes().slice().sort(sortNewestFirst));
-  }
-
   function toggle(id: string, checked: boolean) {
     setPendingAck((m) => ({ ...m, [id]: checked }));
   }
 
-  function submitAck(id: string) {
+  async function submitAck(id: string) {
     const isChecked = !!pendingAck[id];
     if (!isChecked) {
       setMessage("Tick the checkbox first, then submit.");
       window.setTimeout(() => setMessage(null), 2500);
       return;
     }
-    markReceived(id);
-    toggle(id, false);
-    refresh();
-    setMessage("Marked as Received and locked.");
-    window.setTimeout(() => setMessage(null), 2500);
+    try {
+      const { error } = await supabase
+        .from("fabric_return_notes")
+        .update({
+          status: "RECEIVED",
+          received_at: new Date().toISOString()
+        })
+        .eq("id", id)
+        .eq("status", "PENDING");
+
+      if (error) {
+        console.error(error);
+        setMessage("Failed to update status. Please try again.");
+        window.setTimeout(() => setMessage(null), 2500);
+        return;
+      }
+
+      toggle(id, false);
+      await loadNotes();
+      setMessage("Marked as Received and locked.");
+      window.setTimeout(() => setMessage(null), 2500);
+    } catch (err) {
+      console.error(err);
+      setMessage("Unexpected error while updating status.");
+      window.setTimeout(() => setMessage(null), 2500);
+    }
   }
 
   return (
@@ -63,8 +112,9 @@ export default function LogBookPage() {
           <div>
             <div className="text-lg font-semibold">Log Book</div>
             <div className="mt-1 text-sm text-slate-600">
-              All return notes sorted newest-first. Pending:{" "}
+              All return notes from Supabase, newest-first. Pending:{" "}
               <span className="font-medium">{pendingCount}</span>
+              {loading ? <span className="ml-2 text-xs">Loading…</span> : null}
             </div>
           </div>
           <div className="text-sm text-slate-600">
