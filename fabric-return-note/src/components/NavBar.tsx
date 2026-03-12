@@ -37,6 +37,7 @@ export function NavBar() {
         <nav className="flex shrink-0 items-center gap-2">
           <NavLink href="/new" label="New Return Note" />
           <NavLink href="/logbook" label="Log Book" />
+          <NavLink href="/archive" label="Archive" />
         </nav>
       </div>
     </header>

@@ -18,6 +18,7 @@ type FormState = {
   styleCode: string;
   receivedQuantity: string;
   returnedQuantity: string;
+  uom: string;
   returnReason: string;
   challanNo: string;
 };
@@ -39,6 +40,7 @@ export default function NewReturnNotePage() {
       styleCode: "",
       receivedQuantity: "",
       returnedQuantity: "",
+      uom: "",
       returnReason: "",
       challanNo: ""
     }),
@@ -55,7 +57,9 @@ export default function NewReturnNotePage() {
   }
 
   function validate(): string | null {
-    if (!form.fabricCode.trim()) return "Fabric Code is required.";
+    const fabricCodeTrimmed = form.fabricCode.trim();
+    if (!fabricCodeTrimmed) return "Fabric Code is required.";
+    if (fabricCodeTrimmed.length !== 19) return "Please enter Valid Code";
     if (!form.date) return "Date is required.";
     if (!form.vendorName.trim()) return "Vendor Name is required.";
     if (!form.styleCode.trim()) return "Style Code is required.";
@@ -84,12 +88,13 @@ export default function NewReturnNotePage() {
       const { error: insertError } = await supabase
         .from("fabric_return_notes")
         .insert({
-          fabric_code: form.fabricCode.trim(),
+          fabric_code: fabricCodeTrimmed,
           date: form.date,
           vendor_name: form.vendorName.trim(),
           style_code: form.styleCode.trim(),
           received_quantity: Number(form.receivedQuantity),
           returned_quantity: Number(form.returnedQuantity),
+          uom: form.uom.trim() || null,
           return_reason: form.returnReason.trim(),
           challan_no: form.challanNo.trim(),
           status: "PENDING"
@@ -132,7 +137,7 @@ export default function NewReturnNotePage() {
               value={form.fabricCode}
               onChange={(e) => set("fabricCode", e.target.value)}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
-              placeholder="e.g. FAB-1029"
+              placeholder="19-character code"
             />
           </label>
 
@@ -190,6 +195,19 @@ export default function NewReturnNotePage() {
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
               placeholder="e.g. 18"
             />
+          </label>
+
+          <label className="space-y-1">
+            <div className="text-sm font-medium">UOM</div>
+            <select
+              value={form.uom}
+              onChange={(e) => set("uom", e.target.value)}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+            >
+              <option value="">Select UOM</option>
+              <option value="KG">KG</option>
+              <option value="METERS">METERS</option>
+            </select>
           </label>
 
           <label className="space-y-1 md:col-span-2">
