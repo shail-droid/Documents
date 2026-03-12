@@ -88,7 +88,7 @@ export default function NewReturnNotePage() {
       const { error: insertError } = await supabase
         .from("fabric_return_notes")
         .insert({
-          fabric_code: fabricCodeTrimmed,
+          fabric_code: form.fabricCode.trim(),
           date: form.date,
           vendor_name: form.vendorName.trim(),
           style_code: form.styleCode.trim(),
