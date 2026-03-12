@@ -9,7 +9,6 @@ export type FabricReturnNote = {
   styleCode: string;
   receivedQuantity: number;
   returnedQuantity: number;
-  uom?: string;
   returnReason: string;
   challanNo: string;
   status: FabricReturnStatus;
