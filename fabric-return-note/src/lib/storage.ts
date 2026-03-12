@@ -42,7 +42,7 @@ export function markReceived(noteId: string) {
   const next = notes.map((n) => {
     if (n.id !== noteId) return n;
     if (n.status === "RECEIVED") return n;
-    return { ...n, status: "RECEIVED", receivedAt: now };
+    return { ...n, status: "RECEIVED" as any, receivedAt: now };
   });
   saveNotes(next);
 }
